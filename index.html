@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XML 格式化工具</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>XML 格式化工具</h1>
+        <textarea id="xmlInput" placeholder="请输入 XML 内容..."></textarea>
+        <div class="button-container">
+            <button id="compressBtn" onclick="compressXML()">压缩</button>
+            <button id="formatBtn" onclick="formatXML()">格式化</button>
+            <button id="copyBtn" onclick="copyText()">复制</button>
+        </div>
+        <p id="errorMessage" class="error-message"></p>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
