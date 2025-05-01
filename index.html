@@ -8,17 +8,34 @@
     <link rel="icon" href="favicon.ico" type="image/x-icon">
 </head>
 <body>
-    <div class="container">
-        <h1>XML 格式化工具</h1>
-        <textarea id="xmlInput" placeholder="请输入 XML 内容..."></textarea>
-        <div class="button-container">
-            <button id="compressBtn" onclick="compressXML()">压缩</button>
-            <button id="formatBtn" onclick="formatXML()">格式化</button>
-            <button id="copyBtn" onclick="copyText()">复制</button>
-        </div>
-        <p id="errorMessage" class="error-message"></p>
-    </div>
-
+    <main class="container">
+        <header>
+            <h1>XML 格式化工具</h1>
+            <p class="subtitle">快速格式化或压缩您的XML代码</p>
+        </header>
+        
+        <section class="editor-section">
+            <div class="editor-container">
+                <textarea id="xmlInput" placeholder="请输入 XML 内容..." spellcheck="false"></textarea>
+                <div class="editor-actions">
+                    <button id="formatBtn" class="btn btn-primary" onclick="formatXML()">
+                        <span class="btn-icon">📝</span>
+                        格式化
+                    </button>
+                    <button id="compressBtn" class="btn btn-secondary" onclick="compressXML()">
+                        <span class="btn-icon">🗜️</span>
+                        压缩
+                    </button>
+                    <button id="copyBtn" class="btn btn-success" onclick="copyText()">
+                        <span class="btn-icon">📋</span>
+                        复制
+                    </button>
+                </div>
+            </div>
+            <div id="errorMessage" class="error-message" role="alert" aria-live="polite"></div>
+        </section>
+    </main>
+    <div id="toast" class="toast" role="alert" aria-live="polite"></div>
     <script src="script.js"></script>
 </body>
 </html>
