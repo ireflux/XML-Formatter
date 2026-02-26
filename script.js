@@ -1,144 +1,215 @@
-// XML处理工具类
 class XMLProcessor {
+    static normalizeInput(xml) {
+        return xml
+            .replace(/^\uFEFF/, "")
+            .replace(/^\s+/, "");
+    }
+
     static parseXML(input) {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(input, "application/xml");
-        
         const parseError = xmlDoc.getElementsByTagName("parsererror");
+
         if (parseError.length > 0) {
-            throw new Error("无效的XML格式");
+            throw new Error("XML 格式无效");
         }
-        
+
         return xmlDoc;
     }
 
-    // 支持多种XML声明（包括DOCTYPE、注释等）
     static extractDeclarations(xml) {
-        let decls = '';
-        let rest = xml;
-        // 匹配<?xml ...?>
-        const xmlDecl = rest.match(/^<\?xml[\s\S]*?\?>/i);
+        let declarations = "";
+        let content = XMLProcessor.normalizeInput(xml);
+
+        const xmlDecl = content.match(/^<\?xml[\s\S]*?\?>/i);
         if (xmlDecl) {
-            decls += xmlDecl[0] + '\n';
-            rest = rest.replace(/^<\?xml[\s\S]*?\?>\s*/i, '');
+            declarations += `${xmlDecl[0]}\n`;
+            content = content.replace(/^<\?xml[\s\S]*?\?>\s*/i, "");
         }
-        // 匹配<!DOCTYPE ...>
-        const doctypeDecl = rest.match(/^<!DOCTYPE[\s\S]*?>/i);
+
+        const doctypeDecl = content.match(/^<!DOCTYPE[\s\S]*?>/i);
         if (doctypeDecl) {
-            decls += doctypeDecl[0] + '\n';
-            rest = rest.replace(/^<!DOCTYPE[\s\S]*?>\s*/i, '');
+            declarations += `${doctypeDecl[0]}\n`;
+            content = content.replace(/^<!DOCTYPE[\s\S]*?>\s*/i, "");
         }
-        // 匹配开头注释
-        const commentDecl = rest.match(/^<!--([\s\S]*?)-->/);
+
+        const commentDecl = content.match(/^<!--([\s\S]*?)-->/);
         if (commentDecl) {
-            decls += commentDecl[0] + '\n';
-            rest = rest.replace(/^<!--([\s\S]*?)-->\s*/, '');
+            declarations += `${commentDecl[0]}\n`;
+            content = content.replace(/^<!--([\s\S]*?)-->\s*/, "");
         }
-        return { decls: decls.trim(), rest: rest };
+
+        return {
+            declarations: declarations.trim(),
+            content
+        };
     }
 
     static formatXML(xml) {
-        // 提取声明
-        const { decls, rest } = XMLProcessor.extractDeclarations(xml);
-        // 验证XML
-        const xmlDoc = XMLProcessor.parseXML(rest);
+        const { declarations, content } = XMLProcessor.extractDeclarations(xml);
+        const xmlDoc = XMLProcessor.parseXML(content);
+
         function formatNode(node, indent = 0) {
-            let xmlStr = '';
-            const indentStr = '    '.repeat(indent); // 4个空格
-            if (node.nodeType === 1) { // 元素节点
-                xmlStr += `\n${indentStr}<${node.nodeName}`;
-                for (let attr of node.attributes) {
-                    xmlStr += ` ${attr.name}="${attr.value}"`;
+            let output = "";
+            const indentText = "    ".repeat(indent);
+
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                output += `\n${indentText}<${node.nodeName}`;
+
+                for (const attr of node.attributes) {
+                    output += ` ${attr.name}="${attr.value}"`;
                 }
-                xmlStr += '>';
-                const children = Array.from(node.childNodes).filter(n => n.nodeType !== 3 || n.nodeValue.trim() !== '');
-                if (children.length === 1 && children[0].nodeType === 3) {
-                    xmlStr += children[0].nodeValue + `</${node.nodeName}>`;
+
+                output += ">";
+
+                const children = Array.from(node.childNodes).filter(
+                    child => child.nodeType !== Node.TEXT_NODE || child.nodeValue.trim() !== ""
+                );
+
+                if (children.length === 1 && children[0].nodeType === Node.TEXT_NODE) {
+                    output += `${children[0].nodeValue}</${node.nodeName}>`;
                 } else if (children.length > 0) {
-                    for (let child of children) {
-                        xmlStr += formatNode(child, indent + 1);
+                    for (const child of children) {
+                        output += formatNode(child, indent + 1);
                     }
-                    xmlStr += `\n${indentStr}</${node.nodeName}>`;
+                    output += `\n${indentText}</${node.nodeName}>`;
                 } else {
-                    xmlStr += `</${node.nodeName}>`;
+                    output += `</${node.nodeName}>`;
                 }
-            } else if (node.nodeType === 3) {
-                xmlStr += node.nodeValue.trim();
+            } else if (node.nodeType === Node.TEXT_NODE) {
+                output += node.nodeValue.trim();
             }
-            return xmlStr;
+
+            return output;
         }
-        let result = '';
-        for (let node of xmlDoc.childNodes) {
-            if (node.nodeType === 1) {
+
+        let result = "";
+        for (const node of xmlDoc.childNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE) {
                 result += formatNode(node, 0);
             }
         }
+
         result = result.trim();
-        if (decls) {
-            result = decls + '\n' + result;
-        }
-        return result;
+        return declarations ? `${declarations}\n${result}` : result;
     }
 
     static compressXML(xml) {
-        // 提取声明
-        const { decls, rest } = XMLProcessor.extractDeclarations(xml);
-        XMLProcessor.parseXML(rest);
-        let compressed = rest
-            .replace(/>\s+</g, '><')
-            .replace(/\s+/g, ' ')
-            .replace(/>\s+([^<])/g, '>$1')
-            .replace(/([^>])\s+</g, '$1<')
+        const { declarations, content } = XMLProcessor.extractDeclarations(xml);
+        XMLProcessor.parseXML(content);
+
+        let compressed = content
+            .replace(/>\s+</g, "><")
+            .replace(/\s+/g, " ")
+            .replace(/>\s+([^<])/g, ">$1")
+            .replace(/([^>])\s+</g, "$1<")
             .trim();
-        if (decls) {
-            compressed = decls + '\n' + compressed;
-        }
-        return compressed;
+
+        return declarations ? `${declarations}\n${compressed}` : compressed;
     }
 }
 
-// UI控制器类
 class UIController {
     constructor() {
+        this.THEME_KEY = "xml_formatter_theme";
+        this.SAMPLE_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<catalog>
+    <book id="bk101" lang="en">
+        <author>Gambardella, Matthew</author>
+        <title>XML Developer's Guide</title>
+        <genre>Computer</genre>
+        <price currency="USD">44.95</price>
+        <publish_date>2000-10-01</publish_date>
+    </book>
+</catalog>`;
         this.xmlInput = document.getElementById("xmlInput");
         this.errorMessage = document.getElementById("errorMessage");
         this.toast = document.getElementById("toast");
-        this.toastTimeout = null;
-        this.lastInputHeight = this.xmlInput.scrollHeight;
+        this.charCount = document.getElementById("charCount");
+        this.lineCount = document.getElementById("lineCount");
+        this.editorFrame = document.querySelector(".editor-frame");
+        this.emptyState = document.getElementById("emptyState");
+        this.insertExampleBtn = document.getElementById("insertExampleBtn");
+        this.formatBtn = document.getElementById("formatBtn");
+        this.compressBtn = document.getElementById("compressBtn");
+        this.copyBtn = document.getElementById("copyBtn");
+        this.themeToggleBtn = document.getElementById("themeToggleBtn");
+        this.themeToggleLabel = document.getElementById("themeToggleLabel");
+        this.toastTimer = null;
         this.debounceTimers = {};
-        this.initAutoResize();
+
+        this.init();
     }
 
-    showError(message) {
-        // 兼容旧逻辑，toast优先
-        this.showToast(message, 2500, true);
+    init() {
+        this.applyInitialTheme();
+        this.updateStats();
+        this.updateEmptyState();
+        this.autoResize();
+        this.bindEvents();
     }
 
-    showToast(message, duration = 2000, isError = false) {
-        if (this.toastTimeout) {
-            clearTimeout(this.toastTimeout);
-            this.toast.classList.remove('show');
-        }
-        this.toast.textContent = message;
-        this.toast.style.backgroundColor = isError ? 'var(--error-color)' : 'var(--success-color)';
-        this.toast.style.opacity = '0';
-        this.toast.classList.add('show');
-        setTimeout(() => {
-            this.toast.style.opacity = '1';
-        }, 10);
-        this.toastTimeout = setTimeout(() => {
-            this.toast.style.opacity = '0';
-            setTimeout(() => {
-                this.toast.classList.remove('show');
-                this.toastTimeout = null;
-            }, 300);
-        }, duration);
+    bindEvents() {
+        this.xmlInput.addEventListener("input", () => {
+            this.autoResize();
+            this.updateStats();
+            this.updateEmptyState();
+            this.clearError();
+        });
+
+        this.editorFrame?.addEventListener("click", (event) => {
+            const target = event.target;
+            if (target instanceof Element && target.closest("button")) {
+                return;
+            }
+            this.xmlInput.focus();
+        });
+
+        this.formatBtn?.addEventListener("click", this.debounce(() => {
+            this.runAction(XMLProcessor.formatXML, this.formatBtn, true);
+        }, "format", 250));
+
+        this.compressBtn?.addEventListener("click", this.debounce(() => {
+            this.runAction(XMLProcessor.compressXML, this.compressBtn, true);
+        }, "compress", 250));
+
+        this.copyBtn?.addEventListener("click", this.debounce(() => {
+            this.copyToClipboard();
+        }, "copy", 250));
+
+        this.insertExampleBtn?.addEventListener("click", () => {
+            this.insertExampleXML();
+        });
+
+        this.themeToggleBtn?.addEventListener("click", () => {
+            this.toggleTheme();
+        });
+
+        document.addEventListener("paste", (event) => {
+            this.handleGlobalPaste(event);
+        });
+
+        document.addEventListener("keydown", (event) => {
+            const ctrlOrMeta = event.ctrlKey || event.metaKey;
+            if (!ctrlOrMeta || event.key !== "Enter") {
+                return;
+            }
+
+            event.preventDefault();
+            if (event.shiftKey) {
+                this.runAction(XMLProcessor.compressXML, this.compressBtn, true);
+            } else {
+                this.runAction(XMLProcessor.formatXML, this.formatBtn, true);
+            }
+        });
     }
 
-    debounce(fn, key = 'default', delay = 300) {
+    debounce(fn, key, delay = 300) {
         return (...args) => {
-            if (this.debounceTimers[key]) clearTimeout(this.debounceTimers[key]);
-            this.debounceTimers[key] = setTimeout(() => fn.apply(this, args), delay);
+            if (this.debounceTimers[key]) {
+                clearTimeout(this.debounceTimers[key]);
+            }
+            this.debounceTimers[key] = setTimeout(() => fn(...args), delay);
         };
     }
 
@@ -147,78 +218,232 @@ class UIController {
     }
 
     setInputValue(value, keepCursor = false) {
-        if (keepCursor) {
-            const start = this.xmlInput.selectionStart;
-            const end = this.xmlInput.selectionEnd;
+        if (!keepCursor) {
             this.xmlInput.value = value;
             this.autoResize();
-            // 尽量恢复光标位置
-            this.xmlInput.setSelectionRange(start, end);
-        } else {
-            this.xmlInput.value = value;
-            this.autoResize();
+            this.updateStats();
+            this.updateEmptyState();
+            return;
+        }
+
+        const start = this.xmlInput.selectionStart;
+        const end = this.xmlInput.selectionEnd;
+        this.xmlInput.value = value;
+        this.autoResize();
+        this.updateStats();
+        this.updateEmptyState();
+        this.xmlInput.setSelectionRange(start, end);
+    }
+
+    autoResize() {
+        this.xmlInput.style.height = "auto";
+        this.xmlInput.style.height = `${this.xmlInput.scrollHeight}px`;
+    }
+
+    updateStats() {
+        const value = this.getInputValue();
+        const lines = value.length === 0 ? 0 : value.split(/\r\n|\r|\n/).length;
+
+        if (this.charCount) {
+            this.charCount.textContent = String(value.length);
+        }
+
+        if (this.lineCount) {
+            this.lineCount.textContent = String(lines);
         }
     }
 
-    // textarea自适应高度
-    autoResize() {
-        this.xmlInput.style.height = 'auto';
-        this.xmlInput.style.height = this.xmlInput.scrollHeight + 'px';
+    setBusyState(isBusy, activeButton = null) {
+        const buttons = [this.formatBtn, this.compressBtn, this.copyBtn].filter(Boolean);
+        buttons.forEach((btn) => {
+            btn.disabled = isBusy;
+            btn.classList.toggle("is-loading", isBusy && btn === activeButton);
+        });
+
+        if (!activeButton) {
+            return;
+        }
+
+        const label = activeButton.querySelector(".btn-label");
+        if (!label) {
+            return;
+        }
+
+        if (isBusy) {
+            activeButton.dataset.originalText = label.textContent;
+            label.textContent = "处理中...";
+        } else if (activeButton.dataset.originalText) {
+            label.textContent = activeButton.dataset.originalText;
+            delete activeButton.dataset.originalText;
+        }
     }
-    initAutoResize() {
+
+    applyInitialTheme() {
+        const savedTheme = localStorage.getItem(this.THEME_KEY);
+        if (savedTheme === "light" || savedTheme === "dark") {
+            this.setTheme(savedTheme, false);
+            return;
+        }
+
+        const prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+        this.setTheme(prefersLight ? "light" : "dark", false);
+    }
+
+    setTheme(theme, notify = true) {
+        document.documentElement.setAttribute("data-theme", theme);
+        if (this.themeToggleLabel) {
+            this.themeToggleLabel.textContent = theme === "dark" ? "浅色" : "深色";
+        }
+        localStorage.setItem(this.THEME_KEY, theme);
+        if (notify) {
+            this.showToast(theme === "dark" ? "已切换为深色主题" : "已切换为浅色主题", false, 1300);
+        }
+    }
+
+    toggleTheme() {
+        const current = document.documentElement.getAttribute("data-theme") || "dark";
+        this.setTheme(current === "dark" ? "light" : "dark");
+    }
+
+    updateEmptyState() {
+        if (!this.editorFrame) {
+            return;
+        }
+        this.editorFrame.classList.toggle("is-empty", !this.getInputValue().trim());
+    }
+
+    insertExampleXML() {
+        this.setInputValue(this.SAMPLE_XML);
+        this.xmlInput.focus();
+        this.showToast("示例 XML 已插入", false, 1400);
+    }
+
+    handleGlobalPaste(event) {
+        if (!event.clipboardData) {
+            return;
+        }
+
+        const activeElement = document.activeElement;
+        const isTypingTarget =
+            activeElement instanceof HTMLTextAreaElement ||
+            (activeElement instanceof HTMLInputElement &&
+                /^(text|search|url|email|tel|password)$/i.test(activeElement.type)) ||
+            (activeElement instanceof HTMLElement && activeElement.isContentEditable);
+
+        if (isTypingTarget) {
+            return;
+        }
+
+        const text = event.clipboardData.getData("text/plain");
+        if (!text) {
+            return;
+        }
+
+        event.preventDefault();
+        this.xmlInput.focus();
+        this.xmlInput.value = text;
         this.autoResize();
-        this.xmlInput.addEventListener('input', () => this.autoResize());
+        this.updateStats();
+        this.updateEmptyState();
+        this.clearError();
+        this.showToast("已粘贴剪贴板内容", false, 1200);
+    }
+
+    showToast(message, isError = false, duration = 2200) {
+        if (!this.toast) {
+            return;
+        }
+
+        if (this.toastTimer) {
+            clearTimeout(this.toastTimer);
+            this.toast.classList.remove("show");
+        }
+
+        this.toast.textContent = message;
+        this.toast.style.background = isError
+            ? "linear-gradient(160deg, rgba(239, 68, 68, 0.95), rgba(185, 28, 28, 0.95))"
+            : "linear-gradient(160deg, rgba(34, 197, 94, 0.95), rgba(21, 128, 61, 0.95))";
+        this.toast.classList.add("show");
+
+        this.toastTimer = setTimeout(() => {
+            this.toast.classList.remove("show");
+            this.toastTimer = null;
+        }, duration);
+    }
+
+    showError(message) {
+        if (this.errorMessage) {
+            this.errorMessage.textContent = message;
+        }
+        this.showToast(message, true, 2600);
+    }
+
+    clearError() {
+        if (this.errorMessage) {
+            this.errorMessage.textContent = "";
+        }
+    }
+
+    runAction(action, activeButton, keepCursor = false) {
+        const input = this.getInputValue();
+        if (!input.trim()) {
+            this.showError("请输入 XML 内容");
+            return;
+        }
+
+        if (input.length > 100000) {
+            this.showToast("内容较大，处理中可能稍慢...", false, 1600);
+        }
+
+        this.clearError();
+        this.setBusyState(true, activeButton);
+
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                try {
+                    const result = action(input);
+                    this.setInputValue(result, keepCursor);
+                    this.showToast("处理完成", false);
+                } catch (error) {
+                    this.showError(error.message || "处理失败");
+                } finally {
+                    this.setBusyState(false, activeButton);
+                }
+            }, 0);
+        });
     }
 
     async copyToClipboard() {
-        try {
-            await navigator.clipboard.writeText(this.xmlInput.value);
-            this.showToast('复制成功！');
-        } catch (err) {
-            this.showToast("复制失败: " + err.message, 2500, true);
+        const text = this.getInputValue();
+        if (!text.trim()) {
+            this.showError("没有可复制的内容");
+            return;
         }
-    }
 
-    // 通用异常处理
-    handleActionWithError(action, keepCursor = false) {
+        this.clearError();
+        this.setBusyState(true, this.copyBtn);
+
         try {
-            const input = this.getInputValue();
-            if (!input.trim()) {
-                this.showToast('请输入XML内容', 2000, true);
-                return;
-            }
-            // 大文件性能优化：超10万字符时提示
-            if (input.length > 100000) {
-                this.showToast('XML内容过大，操作可能较慢...', 3000, true);
-            }
-            const result = action(input);
-            this.setInputValue(result, keepCursor);
-        } catch (e) {
-            this.showToast(e.message || '操作失败', 2500, true);
+            await navigator.clipboard.writeText(text);
+            this.showToast("已复制到剪贴板", false);
+        } catch (error) {
+            this.showError(`复制失败: ${error.message || "浏览器不支持"}`);
+        } finally {
+            this.setBusyState(false, this.copyBtn);
         }
     }
 }
 
-// 初始化UI控制器
 const ui = new UIController();
 
-// 事件处理函数
 function formatXML() {
-    ui.handleActionWithError(XMLProcessor.formatXML, true);
+    ui.runAction(XMLProcessor.formatXML, ui.formatBtn, true);
 }
 
 function compressXML() {
-    ui.handleActionWithError(XMLProcessor.compressXML, true);
+    ui.runAction(XMLProcessor.compressXML, ui.compressBtn, true);
 }
 
 function copyText() {
     ui.copyToClipboard();
 }
-
-// 按钮防抖
-const formatBtn = document.getElementById('formatBtn');
-const compressBtn = document.getElementById('compressBtn');
-const copyBtn = document.getElementById('copyBtn');
-if (formatBtn) formatBtn.onclick = ui.debounce(formatXML, 'format', 400);
-if (compressBtn) compressBtn.onclick = ui.debounce(compressXML, 'compress', 400);
-if (copyBtn) copyBtn.onclick = ui.debounce(copyText, 'copy', 400);
