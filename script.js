@@ -134,7 +134,6 @@ class UIController {
         this.compressBtn = document.getElementById("compressBtn");
         this.copyBtn = document.getElementById("copyBtn");
         this.themeToggleBtn = document.getElementById("themeToggleBtn");
-        this.themeToggleLabel = document.getElementById("themeToggleLabel");
         this.toastTimer = null;
         this.debounceTimers = {};
 
@@ -291,8 +290,11 @@ class UIController {
 
     setTheme(theme, notify = true) {
         document.documentElement.setAttribute("data-theme", theme);
-        if (this.themeToggleLabel) {
-            this.themeToggleLabel.textContent = theme === "dark" ? "浅色" : "深色";
+        if (this.themeToggleBtn) {
+            this.themeToggleBtn.setAttribute(
+                "aria-label",
+                theme === "dark" ? "切换到浅色主题" : "切换到深色主题"
+            );
         }
         localStorage.setItem(this.THEME_KEY, theme);
         if (notify) {
